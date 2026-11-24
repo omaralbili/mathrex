@@ -977,17 +977,68 @@ async function startConversation() {
         outGain.connect(outAnalyser);
         outAnalyser.connect(audioContext.destination);
 
-        const voice = encodeURIComponent(voiceSelect.value);
+        const voice = voiceSelect.value || "Puck";
+        let isDirect = false;
+        let directModel = "models/gemini-3.8-live";
         let wsUrl;
-        if (window.location.protocol === "file:") {
-            wsUrl = `ws://127.0.0.1:8000/ws/live?voice=${voice}`;
+
+        let serverConfig = null;
+        try {
+            const cfgRes = await fetch("/api/config");
+            if (cfgRes.ok) {
+                serverConfig = await cfgRes.json();
+            }
+        } catch (_) {}
+
+        const activeApiKey = (serverConfig && serverConfig.apiKey) || localStorage.getItem("MATHREX_API_KEY") || "";
+
+        if (activeApiKey) {
+            isDirect = true;
+            directModel = (serverConfig && serverConfig.model) || "models/gemini-3.8-live";
+            wsUrl = `wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1beta.GenerativeService.BidiGenerateContent?key=${encodeURIComponent(activeApiKey)}`;
+        } else if (window.location.protocol === "file:") {
+            wsUrl = `ws://127.0.0.1:8000/ws/live?voice=${encodeURIComponent(voice)}`;
         } else {
             const wsProto = window.location.protocol === "https:" ? "wss:" : "ws:";
-            wsUrl = `${wsProto}//${window.location.host}/ws/live?voice=${voice}`;
+            wsUrl = `${wsProto}//${window.location.host}/ws/live?voice=${encodeURIComponent(voice)}`;
         }
 
         hadError = false;
         ws = new WebSocket(wsUrl);
+
+        ws.onopen = () => {
+            if (isDirect) {
+                const setupMessage = {
+                    setup: {
+                        model: directModel,
+                        generationConfig: {
+                            responseModalities: ["AUDIO"],
+                            speechConfig: {
+                                voiceConfig: {
+                                    prebuiltVoiceConfig: {
+                                        voiceName: voice
+                                    }
+                                }
+                            }
+                        },
+                        systemInstruction: {
+                            parts: [{
+                                text: `أنت MathRex (ماث ريكس)، مدرس ومساعد رياضيات ذكي وودود جداً. اتكلم دايماً بالعربي المصري الطبيعي السهل والقريب من الطالب. مهمتك الأساسية إنك تجاوب على أي سؤال في الرياضيات بدقة 100% — سواء حساب، جبر، هندسة، حساب مثلثات، تفاضل وتكامل، إحصاء، احتمالات، أو مسائل كلامية لكل المراحل (ابتدائي، إعدادي، ثانوي، جامعة). قواعد مهمة جداً في ردودك الصوتية:
+1. تأكد من صحة الحسابات والخطوات كويس جداً قبل ما تقول النتيجة النهائية.
+2. اشرح الحل خطوة بخطوة ببساطة ووضوح، ومن غير ما تطوّل زيادة عن اللزوم عشان المحادثة الصوتية تكون سريعة وممتعة.
+3. انطق الرموز الرياضية بشكل طبيعي بالعربي المصري (مثلاً قول 'س تربيع' أو 'إكس تربيع'، 'جذر'، 'على'، 'في'، 'بيساوي') وما تنطقش رموز برمجية.
+4. لو الطالب بعتلك صورة مسألة أو سؤال (مكتوب بخط اليد أو مطبوع أو رسم هندسي أو اختيار من متعدد)، اقرأ الأرقام والرموز بدقة شديدة وحل المسألة خطوة بخطوة وقول الإجابة النهائية بوضوح بالعربي المصري.
+5. لو الطالب قاطعك في نص الكلام، اقف فوراً واسمع سؤاله أو تعليقه الجديد ورد عليه مباشرة.
+6. شجع الطالب دايماً بأسلوب لطيف ومحفز، ولو سألك سؤال بعيد عن الرياضيات رد عليه بلطف وفكّره إنك متخصص في الرياضيات ومستعد تساعده في أي مسألة.`
+                            }]
+                        },
+                        inputAudioTranscription: {},
+                        outputAudioTranscription: {}
+                    }
+                };
+                ws.send(JSON.stringify(setupMessage));
+            }
+        };
 
         ws.onmessage = async event => {
             const raw = typeof event.data === "string" ? event.data : await event.data.text();
@@ -1064,8 +1115,12 @@ async function startConversation() {
 
         ws.onerror = () => {
             hadError = true;
-            setError("تعذر الاتصال بالسيرفر — تأكد إنك فاتح الرابط http://127.0.0.1:8000 وإن السيرفر شغال");
-            setStatus("حصل خطأ في الاتصال بالسيرفر", "error");
+            if (isDirect) {
+                setError("تعذر الاتصال بـ Gemini Live API — تأكد من صحة مفتاح الـ API وتفعيله");
+            } else {
+                setError("تعذر الاتصال بالسيرفر — تأكد إنك فاتح الرابط http://127.0.0.1:8000 وإن السيرفر شغال");
+            }
+            setStatus("حصل خطأ في الاتصال", "error");
         };
 
         ws.onclose = (ev) => {
