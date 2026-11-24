@@ -984,13 +984,29 @@ async function startConversation() {
 
         let serverConfig = null;
         try {
-            const cfgRes = await fetch("/api/config");
+            let cfgRes = await fetch("/api/config");
+            if (!cfgRes.ok) {
+                cfgRes = await fetch("/api/config.js");
+            }
             if (cfgRes.ok) {
                 serverConfig = await cfgRes.json();
             }
         } catch (_) {}
 
-        const activeApiKey = (serverConfig && serverConfig.apiKey) || localStorage.getItem("MATHREX_API_KEY") || "";
+        let activeApiKey = (serverConfig && serverConfig.apiKey) || localStorage.getItem("MATHREX_API_KEY") || "";
+
+        if (!activeApiKey && window.location.hostname !== "localhost" && window.location.hostname !== "127.0.0.1" && window.location.protocol !== "file:") {
+            const enteredKey = prompt("لم يتم العثور على GEMINI_API_KEY في السيرفر.\nمن فضلك الصق مفتاح الـ API الخاص بك هنا لاستخدامه:");
+            if (enteredKey && enteredKey.trim()) {
+                activeApiKey = enteredKey.trim();
+                localStorage.setItem("MATHREX_API_KEY", activeApiKey);
+            } else {
+                setError("يجب إدخال مفتاح GEMINI_API_KEY لتتمكن من التحدث مع MathRex.");
+                setStatus("مفتاح الـ API غير موجود", "error");
+                stopConversation(true);
+                return;
+            }
+        }
 
         if (activeApiKey) {
             isDirect = true;
