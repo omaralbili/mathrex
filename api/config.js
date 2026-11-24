@@ -1,4 +1,4 @@
-export default function handler(req, res) {
+module.exports = (req, res) => {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET,OPTIONS');
   res.setHeader('Cache-Control', 'no-store, max-age=0');
@@ -14,4 +14,4 @@ export default function handler(req, res) {
     apiKey,
     model
   });
-}
+};
