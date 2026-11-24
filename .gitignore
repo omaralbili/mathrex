@@ -12,10 +12,9 @@ __pycache__/
 .Python
 env/
 venv/
-ENV/
-env.bak/
-venv.bak/
 .venv/
+backend/
+run.bat
 
 # OS and Editor files
 .DS_Store
