@@ -17,7 +17,8 @@ logging.basicConfig(
 logger = logging.getLogger("mathrex")
 
 BASE_DIR = Path(__file__).resolve().parent
-STATIC_DIR = BASE_DIR / "static"
+INDEX_HTML = BASE_DIR / "index.html" if (BASE_DIR / "index.html").exists() else BASE_DIR.parent / "index.html"
+STATIC_DIR = BASE_DIR / "static" if (BASE_DIR / "static").exists() else BASE_DIR.parent / "static"
 
 API_KEY = os.getenv("GEMINI_API_KEY", "").strip()
 GEMINI_MODEL = os.getenv("GEMINI_MODEL", "models/gemini-3.8-live").strip()
@@ -76,7 +77,7 @@ def build_setup_payload(voice_name: str) -> dict:
 
 
 async def index(request: web.Request) -> web.StreamResponse:
-    return web.FileResponse(BASE_DIR / "index.html")
+    return web.FileResponse(INDEX_HTML)
 
 
 async def health(request: web.Request) -> web.Response:
